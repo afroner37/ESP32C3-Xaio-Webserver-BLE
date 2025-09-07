@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ESP32 LED + WiFi Control</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin-top: 40px; }
+    button { font-size: 18px; padding: 10px 20px; margin: 10px; }
+    h2 { margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Controller</h1>
+  <button id="connectBtn">🔗 Connect to ESP32</button>
+
+  <h2>WiFi</h2>
+  <button id="wifiBtn" disabled>Turn WiFi ON</button>
+
+  <h2>LEDs</h2>
+  <button id="redBtn" disabled>Red OFF</button>
+  <button id="yellowBtn" disabled>Yellow OFF</button>
+  <button id="greenBtn" disabled>Green OFF</button>
+
+  <script>
+    const serviceUUID = "12345678-1234-1234-1234-1234567890ab";
+    const charUUIDs = {
+      wifi:   "abcd0004-1234-1234-1234-abcdef123456",
+      red:    "abcd0001-1234-1234-1234-abcdef123456",
+      yellow: "abcd0002-1234-1234-1234-abcdef123456",
+      green:  "abcd0003-1234-1234-1234-abcdef123456"
+    };
+
+    let characteristics = {};
+    let states = { wifi: false, red: false, yellow: false, green: false };
+
+    // Connect button
+    document.getElementById("connectBtn").onclick = async () => {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: "ESP32C3_LED_Controller" }],
+          optionalServices: [serviceUUID]
+        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(serviceUUID);
+
+        // Get all characteristics
+        for (const key in charUUIDs) {
+          characteristics[key] = await service.getCharacteristic(charUUIDs[key]);
+        }
+
+        // Enable buttons
+        document.querySelectorAll("button:not(#connectBtn)").forEach(b => b.disabled = false);
+        alert("Connected to ESP32!");
+      } catch (err) {
+        alert("Connection failed: " + err);
+      }
+    };
+
+    // Helper: toggle a device state
+    async function toggleDevice(key, btn, labelOn, labelOff) {
+      states[key] = !states[key];
+      let value = new TextEncoder().encode(states[key] ? "1" : "0");
+      await characteristics[key].writeValue(value);
+      btn.innerText = states[key] ? labelOn : labelOff;
+    }
+
+    // WiFi toggle
+    document.getElementById("wifiBtn").onclick = () => 
+      toggleDevice("wifi", document.getElementById("wifiBtn"), "Turn WiFi OFF", "Turn WiFi ON");
+
+    // LED toggles
+    document.getElementById("redBtn").onclick = () => 
+      toggleDevice("red", document.getElementById("redBtn"), "Red ON", "Red OFF");
+    document.getElementById("yellowBtn").onclick = () => 
+      toggleDevice("yellow", document.getElementById("yellowBtn"), "Yellow ON", "Yellow OFF");
+    document.getElementById("greenBtn").onclick = () => 
+      toggleDevice("green", document.getElementById("greenBtn"), "Green ON", "Green OFF");
+  </script>
+</body>
+</html>
