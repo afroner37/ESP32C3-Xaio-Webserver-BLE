@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESP32-C3 BLE LED Control</title>
 <style>
-  body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
-  h1 { text-align: center; }
-  .led-control { margin: 20px 0; }
-  label { display: block; margin-bottom: 5px; font-weight: bold; }
-  input[type="range"] { width: 100%; }
+body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+h1 { text-align: center; }
+.led-control { margin: 20px 0; }
+label { display: block; margin-bottom: 5px; font-weight: bold; }
+input[type="range"] { width: 100%; }
+button { padding: 10px; font-size: 16px; margin-bottom: 20px; }
 </style>
 </head>
 <body>
@@ -33,15 +34,14 @@
 </div>
 
 <script>
-let device;
-let server;
-let service;
+let device, server, service;
 let redChar, yellowChar, greenChar;
-
 const SERVICE_UUID = 'FF00';
 const RED_UUID = 'FF01';
 const YELLOW_UUID = 'FF02';
 const GREEN_UUID = 'FF03';
+
+let lastSent = { red: 0, yellow: 0, green: 0 };
 
 async function connectBLE() {
   try {
@@ -56,22 +56,25 @@ async function connectBLE() {
     greenChar = await service.getCharacteristic(GREEN_UUID);
 
     alert('Connected to ESP32-C3!');
-  } catch (error) {
-    console.error(error);
-    alert('Failed to connect: ' + error);
+  } catch (e) {
+    alert('Connection failed: ' + e);
+    console.error(e);
   }
 }
 
-function writeLED(char, value) {
+// Throttled write function
+function writeLED(char, value, key) {
   if (!char) return;
-  const data = new Uint8Array([value]);
-  char.writeValue(data).catch(err => console.error(err));
+  const now = Date.now();
+  if (now - (lastSent[key] || 0) < 50) return; // 50ms throttle
+  lastSent[key] = now;
+  char.writeValue(new Uint8Array([value])).catch(console.error);
 }
 
 document.getElementById('connectBtn').addEventListener('click', connectBLE);
-document.getElementById('redSlider').addEventListener('input', e => writeLED(redChar, parseInt(e.target.value)));
-document.getElementById('yellowSlider').addEventListener('input', e => writeLED(yellowChar, parseInt(e.target.value)));
-document.getElementById('greenSlider').addEventListener('input', e => writeLED(greenChar, parseInt(e.target.value)));
+document.getElementById('redSlider').addEventListener('input', e => writeLED(redChar, parseInt(e.target.value), 'red'));
+document.getElementById('yellowSlider').addEventListener('input', e => writeLED(yellowChar, parseInt(e.target.value), 'yellow'));
+document.getElementById('greenSlider').addEventListener('input', e => writeLED(greenChar, parseInt(e.target.value), 'green'));
 </script>
 </body>
 </html>
