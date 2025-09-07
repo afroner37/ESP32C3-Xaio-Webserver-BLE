@@ -1,80 +1,77 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>ESP32 LED + WiFi Control</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 40px; }
-    button { font-size: 18px; padding: 10px 20px; margin: 10px; }
-    h2 { margin-top: 30px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32-C3 BLE LED Control</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+  h1 { text-align: center; }
+  .led-control { margin: 20px 0; }
+  label { display: block; margin-bottom: 5px; font-weight: bold; }
+  input[type="range"] { width: 100%; }
+</style>
 </head>
 <body>
-  <h1>ESP32 Controller</h1>
-  <button id="connectBtn">🔗 Connect to ESP32</button>
+<h1>ESP32-C3 BLE LED Control</h1>
 
-  <h2>WiFi</h2>
-  <button id="wifiBtn" disabled>Turn WiFi ON</button>
+<button id="connectBtn">Connect to ESP32</button>
 
-  <h2>LEDs</h2>
-  <button id="redBtn" disabled>Red OFF</button>
-  <button id="yellowBtn" disabled>Yellow OFF</button>
-  <button id="greenBtn" disabled>Green OFF</button>
+<div class="led-control">
+  <label for="redSlider">Red LED</label>
+  <input type="range" id="redSlider" min="0" max="255" value="0">
+</div>
 
-  <script>
-    const serviceUUID = "12345678-1234-1234-1234-1234567890ab";
-    const charUUIDs = {
-      wifi:   "abcd0004-1234-1234-1234-abcdef123456",
-      red:    "abcd0001-1234-1234-1234-abcdef123456",
-      yellow: "abcd0002-1234-1234-1234-abcdef123456",
-      green:  "abcd0003-1234-1234-1234-abcdef123456"
-    };
+<div class="led-control">
+  <label for="yellowSlider">Yellow LED</label>
+  <input type="range" id="yellowSlider" min="0" max="255" value="0">
+</div>
 
-    let characteristics = {};
-    let states = { wifi: false, red: false, yellow: false, green: false };
+<div class="led-control">
+  <label for="greenSlider">Green LED</label>
+  <input type="range" id="greenSlider" min="0" max="255" value="0">
+</div>
 
-    // Connect button
-    document.getElementById("connectBtn").onclick = async () => {
-      try {
-        const device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: "ESP32C3_LED_Controller" }],
-          optionalServices: [serviceUUID]
-        });
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService(serviceUUID);
+<script>
+let device;
+let server;
+let service;
+let redChar, yellowChar, greenChar;
 
-        // Get all characteristics
-        for (const key in charUUIDs) {
-          characteristics[key] = await service.getCharacteristic(charUUIDs[key]);
-        }
+const SERVICE_UUID = 'FF00';
+const RED_UUID = 'FF01';
+const YELLOW_UUID = 'FF02';
+const GREEN_UUID = 'FF03';
 
-        // Enable buttons
-        document.querySelectorAll("button:not(#connectBtn)").forEach(b => b.disabled = false);
-        alert("Connected to ESP32!");
-      } catch (err) {
-        alert("Connection failed: " + err);
-      }
-    };
+async function connectBLE() {
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [SERVICE_UUID] }]
+    });
+    server = await device.gatt.connect();
+    service = await server.getPrimaryService(SERVICE_UUID);
 
-    // Helper: toggle a device state
-    async function toggleDevice(key, btn, labelOn, labelOff) {
-      states[key] = !states[key];
-      let value = new TextEncoder().encode(states[key] ? "1" : "0");
-      await characteristics[key].writeValue(value);
-      btn.innerText = states[key] ? labelOn : labelOff;
-    }
+    redChar = await service.getCharacteristic(RED_UUID);
+    yellowChar = await service.getCharacteristic(YELLOW_UUID);
+    greenChar = await service.getCharacteristic(GREEN_UUID);
 
-    // WiFi toggle
-    document.getElementById("wifiBtn").onclick = () => 
-      toggleDevice("wifi", document.getElementById("wifiBtn"), "Turn WiFi OFF", "Turn WiFi ON");
+    alert('Connected to ESP32-C3!');
+  } catch (error) {
+    console.error(error);
+    alert('Failed to connect: ' + error);
+  }
+}
 
-    // LED toggles
-    document.getElementById("redBtn").onclick = () => 
-      toggleDevice("red", document.getElementById("redBtn"), "Red ON", "Red OFF");
-    document.getElementById("yellowBtn").onclick = () => 
-      toggleDevice("yellow", document.getElementById("yellowBtn"), "Yellow ON", "Yellow OFF");
-    document.getElementById("greenBtn").onclick = () => 
-      toggleDevice("green", document.getElementById("greenBtn"), "Green ON", "Green OFF");
-  </script>
+function writeLED(char, value) {
+  if (!char) return;
+  const data = new Uint8Array([value]);
+  char.writeValue(data).catch(err => console.error(err));
+}
+
+document.getElementById('connectBtn').addEventListener('click', connectBLE);
+document.getElementById('redSlider').addEventListener('input', e => writeLED(redChar, parseInt(e.target.value)));
+document.getElementById('yellowSlider').addEventListener('input', e => writeLED(yellowChar, parseInt(e.target.value)));
+document.getElementById('greenSlider').addEventListener('input', e => writeLED(greenChar, parseInt(e.target.value)));
+</script>
 </body>
 </html>
