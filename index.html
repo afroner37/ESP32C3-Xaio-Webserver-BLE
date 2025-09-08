@@ -10,13 +10,14 @@ h1 { text-align: center; }
 .led-control { margin: 20px 0; }
 label { display: block; margin-bottom: 5px; font-weight: bold; }
 input[type="range"] { width: 100%; }
-button { padding: 10px; font-size: 16px; margin-bottom: 20px; }
+button { padding: 10px; font-size: 16px; margin-bottom: 20px; display:block; width:100%; }
 </style>
 </head>
 <body>
 <h1>ESP32-C3 BLE LED Control</h1>
 
 <button id="connectBtn">Connect to ESP32</button>
+<button id="sequenceBtn">Run Sequence</button>
 
 <div class="led-control">
   <label for="redSlider">Red LED</label>
@@ -35,25 +36,26 @@ button { padding: 10px; font-size: 16px; margin-bottom: 20px; }
 
 <script>
 let device, server, service;
-let redChar, yellowChar, greenChar;
+let redChar, yellowChar, greenChar, sequenceChar;
 const SERVICE_UUID = 'FF00';
 const RED_UUID = 'FF01';
 const YELLOW_UUID = 'FF02';
 const GREEN_UUID = 'FF03';
+const SEQUENCE_UUID = 'FF04';
 
 let lastSent = { red: 0, yellow: 0, green: 0 };
 
+// Connect to ESP32
 async function connectBLE() {
   try {
-    device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [SERVICE_UUID] }]
-    });
+    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
     server = await device.gatt.connect();
     service = await server.getPrimaryService(SERVICE_UUID);
 
     redChar = await service.getCharacteristic(RED_UUID);
     yellowChar = await service.getCharacteristic(YELLOW_UUID);
     greenChar = await service.getCharacteristic(GREEN_UUID);
+    sequenceChar = await service.getCharacteristic(SEQUENCE_UUID);
 
     alert('Connected to ESP32-C3!');
   } catch (e) {
@@ -62,7 +64,7 @@ async function connectBLE() {
   }
 }
 
-// Throttled write function
+// Throttled write for sliders
 function writeLED(char, value, key) {
   if (!char) return;
   const now = Date.now();
@@ -71,10 +73,18 @@ function writeLED(char, value, key) {
   char.writeValue(new Uint8Array([value])).catch(console.error);
 }
 
-document.getElementById('connectBtn').addEventListener('click', connectBLE);
+// Slider events
 document.getElementById('redSlider').addEventListener('input', e => writeLED(redChar, parseInt(e.target.value), 'red'));
 document.getElementById('yellowSlider').addEventListener('input', e => writeLED(yellowChar, parseInt(e.target.value), 'yellow'));
 document.getElementById('greenSlider').addEventListener('input', e => writeLED(greenChar, parseInt(e.target.value), 'green'));
+
+document.getElementById('connectBtn').addEventListener('click', connectBLE);
+
+// Run sequence button
+document.getElementById('sequenceBtn').addEventListener('click', async () => {
+  if(!sequenceChar) { alert("Connect first!"); return; }
+  await sequenceChar.writeValue(new Uint8Array([0x01]));
+});
 </script>
 </body>
 </html>
